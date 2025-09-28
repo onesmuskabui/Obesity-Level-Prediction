@@ -1,0 +1,418 @@
+---
+title: "The Dataset and Initial EDA"
+author: "Onesmus Kabui"
+format: html
+editor: visual
+---
+
+## About the Dataset
+
+This dataset contains data from individuals from Mexico, Peru and Columbia regarding their habits; eating habits and physical condition. By applying statistical and machine learning models, we can move beyond description and actually predict obesity levels. Each entry contains 17 variables and we have 2111 entries in total. 23% of the data was collected though a web platform directly from users and the rest was generated synthetically. From the feature variables estimates of the target variable are classified into different categories; Insufficient Weight, Normal Weight, Overweight Level I, Overweight Level II, Obesity Type I, Obesity Type II or Obesity Type III.
+
+### Variables Overview
+
+This dataset has 17 variables with one target variable. The variables can be described in terms of categories.
+
+1.  Demographic Information
+
+-   Gender
+
+-   Age – Age in years
+
+-   Height – Height in meters
+
+-   Weight – Weight in kilograms
+
+    2\. Eating Habits
+
+-   family_history_with_overweight – Whether close family members are overweight
+
+-   FAVC – Frequent consumption of high-calorie food (yes/no)
+
+-   FCVC – Frequency of vegetable consumption (scale)
+
+-   NCP – Number of main meals per day
+
+-   CAEC – Consumption of food between meals (snacking)
+
+-   SMOKE – Whether the individual smokes
+
+-   CH2O – Daily water intake (liters)
+
+-   SCC – Monitoring of daily calorie consumption (yes/no)
+
+-   CALC – Frequency of alcohol consumption
+
+    3\. Physical Condition & Lifestyle
+
+-   FAF – Physical activity frequency (hours per week)
+
+-   TUE – Time spent using technology devices (hours per day)
+
+-   MTRANS – Mode of transportation used (car, bike, public transport, walking, etc.)
+
+    4\. Target Variable
+
+-   NObeyesdad – Obesity Level (Insufficient Weight, Normal Weight, Overweight I, Overweight II, Obesity Type I, Obesity Type II, Obesity Type III)
+
+### Initial EDA
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(broom)
+setwd("C:/Users/user/Desktop/datasets")
+obesity_data<-read.csv("ObesityDataSet_raw.csv")
+glimpse(obesity_data)
+summary(obesity_data)
+colSums(is.na(obesity_data))
+
+#Understanding the target variable level balance
+obesity_data %>% 
+  count(NObeyesdad) %>% 
+  ggplot(aes(x=NObeyesdad,y= n, fill=NObeyesdad))+
+  geom_col()+
+  labs(title = "obesity levels balance",x="obesity level",y="count")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) #to stop overlapping for x axis labels
+```
+
+In the initial EDA we have made some key observations regarding our obesity data. Using glimpse we have discovered that the data type in the columns are double and in character form, some columns that contain character data type need to be converted to factor data type. We have also observed consistency in data for all numeric variables. This was also confirmed by the summary statistics with variable values falling within the reasonable range.
+
+There are no missing values in this data for all variables. We also look at the target variable in depth and also plot to make sure the data is balanced and no classes dominate more. From the plot obesity_type_1 has the highest count while insufficient_weight has the lowest count. But on average the deviation between the variable counts is minimal we can conclude that the target variable is balanced.
+
+## Data Cleaning and Preparation
+
+#### Renaming Columns
+
+```{r}
+obesity_data<-obesity_data %>%  
+  rename(gender = Gender, age = Age, height = Height,weight = Weight,high_cal_food=FAVC,vegetable_consumption=FCVC,smoke=SMOKE, main_meals_number=NCP,snacking_between_meals=CAEC,water_intake=CH2O,calories_monitoring=SCC,alcohol_frequency=CALC,physical_activity=FAF,screen_time=TUE,transport_means=MTRANS,obesity_level=NObeyesdad)
+
+glimpse(obesity_data,2) 
+```
+
+We standardized variable names by removing abbreviations and capital letters to improve readability and consistency
+
+### Checking data types
+
+```{r}
+str(obesity_data) 
+```
+
+We notice that all variables represented as character data type are best represented as a categorical variables. So we can go ahead and transform all character variables to factor data types.
+
+```{r}
+obesity_data<-obesity_data %>%   
+  mutate(across(where(is.character),as.factor)) 
+library(purrr)
+obesity_data %>%   
+  select(where(is.factor)) %>%  
+  map(table)# see the different levels in the categoricall variables and their distribution.
+```
+
+After transforming to factor and running str() again we can see columns as factors with their respective levels indicated. At this point our data is consistent and readable we can confirm that there are no missing values and proceed to EDA.
+
+### Check for missing values
+
+```{r}
+colSums(is.na(obesity_data))
+
+```
+
+There are no missing data.
+
+## Exploratory Data Analysis
+
+To capture the patterns and relationships in our data we carry out exploratory data analysis. To compare numeric variables with factor level target variable we use the ANOVA test and chi-square test to compare the relationship between categorical variables and target variables. After that we will see which features show which variables show strongest association with obesity level.
+
+### Univariate analysis of Numeric Variables.
+
+```{r}
+obesity_num_vars<- c("age", "height", "weight", "vegetable_consumption",
+              "main_meals_number", "water_intake", 
+              "physical_activity", "screen_time")
+# Histograms to visualize distribution
+obesity_data %>%
+  select(all_of(obesity_num_vars)) %>%
+  # pivot longer so ggplot2 can handle many variables in one plot
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = variable)) +
+  geom_histogram(bins = 30, alpha = 0.7, color = "black") +
+  # separate scale for each variable
+  facet_wrap(~variable, scales = "free", ncol = 3) +
+  theme_minimal() +
+  labs(title = "Distribution of Numerical Variables")
+```
+
+From the univariate analysis of each numerical variable we can draw some conclusions about each variable.
+
+Age\~ from the histogram, we see that age has right skewness meaning that the participants in this data are relatively young.
+
+height\~the height variable has a normal distribution most participants having an average height
+
+main meals number \~ variable shows an overwhelming number of people take 3 meals a day while others still take 1 and still 4 meals but very few.
+
+physical activity\~ most participants exercise 0-1 hour in a week with a small group doing 2-3 hours of exercise per week
+
+screen time \~ most participants report less hours on the screens
+
+vegetable consumption\~ the histogram is left skewed meaning most participants report frequent vegetable consumption.
+
+water intake\~ participants water consumption is distributed across from 1 to 3 liters of water although many respondents report taking 2 liters of water.
+
+weight\~ weight is normally distributed but there appears to be obese and underweight participants weighing in above 100 kilos
+
+### Univariate analysis of categorical variables
+
+```{r}
+obesity_factors <- obesity_data %>%
+  select(where(is.factor)) %>%
+  select(-obesity_level) %>%
+  names()
+obesity_data %>%
+  pivot_longer(cols = all_of(obesity_factors),
+               names_to = "variable",
+               values_to = "value") %>%
+  ggplot(aes(x = value, fill = value)) +
+  geom_bar(show.legend = FALSE) +
+  facet_wrap(~variable, scales = "free", ncol = 3) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Univariate Distribution of Categorical Variables",
+       x = "Category",
+       y = "Count")
+```
+
+From the distribution of categorical variables;
+
+Alcohol consumption falls into two groups of sometimes and no drinking indicating that most participants are light drinkers or non-drinkers..
+
+Calories monitoring is heavily skewed towards no meaning almost all participants in the study do not monitor their calories intake which is expected, as few people typically monitor their calorie intake
+
+family history with overweight also shows an overwhelming response of yes meaning many participants had at least one member who was overweight. This may introduce bias due to reliance on self-reported information
+
+For gender which is actually very key we have a very fair representation of males and females.
+
+high calories food many participants responded that they take high calorie food but we still had those who believed they consume low calorie food
+
+obesity levels are very evenly distributed but type 1 obesity has the largest number of people classified in one group
+
+For smoking most participants are non smokers so this may provide insights into how smoking relates to obesity levels.
+
+snacking between meals as expected most people say they take snacks in between meals but to find out whether that has an effect in weight of a person we will see whether that can sufficiently predict someone obesity levels.
+
+finally for categorical variables almost the whole population under study use either public transportation and automobiles which probably have the same level of physical movement but a small sample uses walking as their means of movement and that will be interesting to see how they predict obesity levels.
+
+### Numeric variables vs Obesity level
+
+```{r}
+# ANOVA for each numeric predictor
+num_results <- map_df(obesity_num_vars, function(var) {
+  model <- aov(as.formula(paste(var, "~ obesity_level")), data=obesity_data)
+  tidy <- broom::tidy(model)
+  data.frame(
+    Variable = var,
+    p_value = tidy$p.value[1]
+  )
+})
+
+num_results
+```
+
+We applied ANOVA to test whether the mean values of numeric predictors differ across obesity categories. The null hypothesis stated that the means are equal across groups, while the alternative suggested at least one group differs. Results showed that all numeric variables (age, height, weight, vegetable consumption, main meals, water intake, physical activity, and screen time) had highly significant associations with obesity level (all p \< 0.001). This indicates that differences in these behaviors and characteristics are strongly linked to variations in obesity status.
+
+### Categorical vs target variables
+
+```{r}
+# Chi-square tests
+cat_results <- map_df(obesity_factors, function(var) {
+  tbl <- table(obesity_data[[var]], obesity_data$obesity_level)
+  test <- chisq.test(tbl)
+  data.frame(
+    Variable = var,
+    p_value = test$p.value
+  )
+})
+
+cat_results
+
+```
+
+Chi-square tests show that all categorical variables are significantly associated with obesity level (all p \< 0.05). This means factors like gender, family history, snacking, calorie monitoring, alcohol use, and transport choices are not independent of obesity outcomes, with family history and snacking showing especially strong links.This suggests that lifestyle and demographic features contain valuable predictive information, which justifies proceeding to supervised modelling
+
+## Modelling
+
+### Train test split
+
+We divided the dataset into training and testing sets to ensure fair model evaluation. The training set is used to learn patterns, while the testing set provides an unbiased measure of performance on unseen data. The training set takes 70% and test set 30%
+
+```{r}
+library(caret)
+obesity_index<-createDataPartition(obesity_data$obesity_level,p=0.8,list = FALSE)
+obesity_train<-obesity_data[obesity_index,]
+obesity_test<-obesity_data[-obesity_index,]
+# Check class distribution in training and testing sets
+prop.table(table(obesity_train$obesity_level))
+prop.table(table(obesity_test$obesity_level))
+```
+
+The split preserved class balance and in both sets all target levels are represented well.
+
+### Logistic regression
+
+Our baseline model will be multinomial logistic regression because our target is multiclass. From this model we can evaluate the linear relationship between the predictors and obesity levels.
+
+```{r}
+library(nnet)
+obesity_multinom<- multinom(obesity_level~., data = obesity_train)
+summary(obesity_multinom)
+```
+
+```{r}
+obesity_pred<- predict(obesity_multinom, newdata = obesity_test) #prediction
+table(predicted= obesity_pred, actual=obesity_test$obesity_level)# confusion matrix
+
+mean(obesity_pred==obesity_test$obesity_level)#classification accuracy
+
+```
+
+The confusion matrix performed well in classifying extreme classes such as insufficient weight and obesity type 3. Most confusion in the model classification appear between middle classes such as normal weight and obesity type 1. The accuracy test shows an accuracy score of 93.8% meaning our model accurately predicts 94 for 100 cases. We can conclude that the model is dependable inn distinguishing between different obesity levels.
+
+### Decision tree
+
+From decision trees we will get more interpretability, capture non linear relationships as well as feature importance.
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+obesity_tree<-rpart(obesity_level~.,data = obesity_train,method = "class",)#fit decision tree model
+rpart.plot(obesity_tree, type = 4, extra = 104, under = TRUE, faclen = 3)
+#prediction
+obesity_pred2<-predict(obesity_tree, newdata = obesity_test,type = "class")
+#confusion  matrix
+table(predicted=obesity_pred2,actual=obesity_test$obesity_level)
+#accuracy test
+mean(obesity_pred2==obesity_test$obesity_level)
+#variable importance
+obesity_tree$variable.importance
+#variable importance plot
+variable_importance<-sort(obesity_tree$variable.importance,decreasing = TRUE)
+barplot(variable_importance,main = "Variable importance in obesity data",las = 2, cex.names = 0.8,col = blues9)
+
+
+
+```
+
+This decision tree threw an over fitting warning but we initially proceeded to check how it performs. It had an accuracy score of 87%, lower than multi-nomial logistic regression from the more confusion in normal weight vs overweight1 and overweight2. From the variable importance, weight and height had the biggest influence in the splits of obesity level while screen time and means of transport has the least influence.
+
+### Random Forests
+
+Random forest is more versatile than single decision tree reducing the risk of overfitting and providing higher accuracy by combining many decision trees to reduce model variance.
+
+```{r}
+set.seed(66)
+library(randomForest)
+
+obesity_forest<-randomForest(obesity_level~.,obesity_train, ntree=500,mtry=3,importance=TRUE)#random forest with 500 trees
+print(obesity_forest)
+#variable importance
+importance(obesity_forest)
+varImpPlot(obesity_forest,main = "Variable importance random forests")
+#prediction
+obesity_pred3<-predict(obesity_forest,newdata = obesity_test)
+#confusion matrix
+table(predicted=obesity_pred3,actual=obesity_test$obesity_level)
+#accuracy test
+mean(obesity_pred3==obesity_test$obesity_level)
+```
+
+The random forest model achieved an OOB error of 5.03% , our model has extremely low error rate. This low error rate is validated by a score accuracy of 94.52% demonstrating a reliability in classifying obesity level. It also had misclassifications between normal weight and overweight level 1. From feature importance, the model identified the most influential features for predicting different obesity levels were; weight (MeanDecreaseAccuracy: 94.48) height (MeanDecreaseAccuracy: 48.79) age (MeanDecreaseAccuracy: 47.63) For behavioral factors, vegetable consumption and water intake were the most influential.
+
+### Feature scaling
+
+I am going to encode categorical variables into numerical formats using dummy variables for categorical variables. With dummy numeric variables and scaled variables, and K-nearest neighbors uses distance metrics we can avoid disproportional influence in distance calculation.
+
+```{r}
+library(class)
+library(caret)
+# Identify predictors
+predictors <- setdiff(names(obesity_train), "obesity_level")
+
+# Create dummy variables for categorical predictors
+dummies <- dummyVars(obesity_level ~ ., data= obesity_train)
+
+train_transformed <- data.frame(predict(dummies, newdata = obesity_train))
+
+train_transformed$obesity_level <- obesity_train$obesity_level
+
+test_transformed <- data.frame(predict(dummies, newdata = obesity_test))
+test_transformed$obesity_level <- obesity_test$obesity_level
+
+str(train_transformed)
+
+#Scaling numeric variables.
+scaled<- preProcess(train_transformed, method = c("center", "scale"))
+
+train_ready <- predict(scaled, train_transformed)
+test_ready  <- predict(scaled, test_transformed)
+str(train_ready)
+
+# Separate predictors and labels
+train_x <- subset(train_ready, select = -obesity_level)
+train_y <- train_ready$obesity_level
+
+test_x  <- subset(test_ready, select = -obesity_level)
+test_y  <- test_ready$obesity_level
+```
+
+### K Nearest Neighbors
+
+K nearest neighbors works by finding K most similar data points in a training set to a new unclassified point and in our case assigning it to the level with the majority of the K neighbors.
+
+```{r}
+set.seed(66)
+obesity_pred4 <- knn(train = train_x,
+                test  = test_x,
+                cl    = train_y,
+                k     = 3) # kNN with k =3
+
+# Confusion matrix
+table(predicted = obesity_pred4, actual = test_y)
+
+# Accuracy
+mean(obesity_pred4 == test_y)
+```
+
+KNN correctly classified 85.2% of test observations. This is lower than random forests this suggests that the relationship in the features is highly non-linear which is better captured in random forests. The KNN model had difficulty separating insufficient weight from normal weight misclassifying 9 insufficient weight as normal weight. The model had very high accuracy, correctly classifying 63 out of 65 observations as obesity type 3. The confusion matrix also suggests the model struggles with boundary levels but performs best at extreme levels.
+
+### Conclusions and Recommendations 
+
+-   This study successfully developed 4 statistical models to classify obesity levels into 7 distinct categories.
+
+-   Of the 4 models, the best performing model was the random forests model achieving 94.5% accurate prediction rate on an independent test set.
+
+-   This was a demonstration of the need for complex non-linear model. Feature importance of the variable showed physical factors are the primary predictors to predict obesity level; those are weight, height, and age.
+
+-   Behavioral factors such as water intake and vegetable consumption also ranked high for predicting obesity level.
+
+-   The lowest ranking features for predicting obesity level were means of transport and time spent on screens this showed that the means of transport was not significant in predicting obesity levels.
+
+-    In comparison physical activity ranked high because it influences calorie burning.
+
+-   Number of meals per day was an important predictor as more meals per day translate to more calorie intake and more chances of obesity.
+
+**Public Health Application**
+
+The high accuracy of the Random Forest model suggests it could be implemented in clinical or public health screening tools to rapidly and reliably classify an individual's obesity risk based on easily collected data. This early, accurate classification can facilitate timely, targeted health interventions.
+
+**Limitations**
+
+This study is limited by a single data set. This data should be validated by diverse data geographically, to confirm it's robustness in predicting obesity level and feature importance for different populations.
+
+**Future work**
+
+-   Further tuning of the random forest model
+
+-   Regression task: generating BMI feature and predicting it as the response instead of obesity level factor levels.
